@@ -59,11 +59,27 @@ RUN git clone --filter=blob:none --sparse https://github.com/planetarium/agent8-
 
 WORKDIR /app/agent8-templates
 COPY pnpm-workspace.yaml ./pnpm-workspace.yaml
-ENV PNPM_HOME=/pnpm
+
+ENV PNPM_HOME=/pnpm-temp \
+    PNPM_STORE_DIR=/pnpm-temp/store
+
+# Create directories for the pnpm cache
+RUN mkdir -p /pnpm-temp/store /pnpm/store
+
+# This will be overridden at container startup with a script to copy from read-only volume
 RUN pnpm install --prod
+
+
+ENV PNPM_HOME=/pnpm \
+    PNPM_STORE_DIR=/pnpm/store
+
+# Copy the init script for pnpm store and grant execute permission
+COPY init-pnpm-store.sh /app/init-pnpm-store.sh
+RUN chmod +x /app/init-pnpm-store.sh
 
 WORKDIR /home/project
 
 EXPOSE 3000
 
-ENTRYPOINT ["bun", "/app/dist/index.js"]
+# Use the init script as entrypoint that will setup pnpm store and then run the original entrypoint
+ENTRYPOINT ["/app/init-pnpm-store.sh", "bun", "/app/dist/index.js"]
